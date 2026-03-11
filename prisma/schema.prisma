@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["saticore"]
 }
 
 model User {
@@ -17,6 +19,8 @@ model User {
   createdAt     DateTime  @default(now())
   sessions      Session[]
   devices       Device[]
+
+  @@schema("saticore")
 }
 
 model Session {
@@ -32,6 +36,8 @@ model Session {
   completedAt     DateTime?
   healthSamples   HealthSample[]
   createdAt       DateTime       @default(now())
+
+  @@schema("saticore")
 }
 
 model HealthSample {
@@ -42,6 +48,8 @@ model HealthSample {
   hrv             Float?
   respiratoryRate Float?
   timestamp       DateTime
+
+  @@schema("saticore")
 }
 
 model Device {
@@ -53,4 +61,6 @@ model Device {
   status      String
   lastSeen    DateTime?
   createdAt   DateTime @default(now())
+
+  @@schema("saticore")
 }
