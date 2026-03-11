@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  owUserId      String?   @unique
+  owSdkToken    String?
+  owTokenExpiry DateTime?
+  createdAt     DateTime  @default(now())
+  sessions      Session[]
+  devices       Device[]
+}
+
+model Session {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  durationTarget  Int
+  durationActual  Int
+  score           Int?
+  scoreBreakdown  Json?
+  status          String
+  startedAt       DateTime
+  completedAt     DateTime?
+  healthSamples   HealthSample[]
+  createdAt       DateTime       @default(now())
+}
+
+model HealthSample {
+  id              String   @id @default(uuid())
+  sessionId       String
+  session         Session  @relation(fields: [sessionId], references: [id])
+  heartRate       Float?
+  hrv             Float?
+  respiratoryRate Float?
+  timestamp       DateTime
+}
+
+model Device {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  owDeviceId  String
+  name        String
+  status      String
+  lastSeen    DateTime?
+  createdAt   DateTime @default(now())
+}

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: saticore-api
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: saticore-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OW_API_KEY
+        sync: false
+      - key: OW_APP_ID
+        sync: false
+      - key: OW_APP_SECRET
+        sync: false
+      - key: OW_BASE_URL
+        value: https://api.openwearables.com
+
+databases:
+  - name: saticore-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
