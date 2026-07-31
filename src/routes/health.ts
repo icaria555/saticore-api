@@ -66,29 +66,44 @@ router.get(
         throw new AppError(400, 'No wearable device connected');
       }
 
-      // Refresh OW token if needed
       let sdkToken = user.owSdkToken;
-      const refreshed = await owService.refreshTokenIfNeeded(
-        user.owUserId,
-        user.owTokenExpiry,
-      );
-      if (refreshed) {
-        sdkToken = refreshed.token;
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            owSdkToken: refreshed.token,
-            owTokenExpiry: new Date(refreshed.expiresAt),
-          },
+      try {
+        const refreshed = await owService.refreshTokenIfNeeded(
+          user.owUserId,
+          user.owTokenExpiry,
+        );
+        if (refreshed) {
+          sdkToken = refreshed.token;
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              owSdkToken: refreshed.token,
+              owTokenExpiry: new Date(refreshed.expiresAt),
+            },
+          });
+        }
+      } catch (error) {
+        logger.warn('Open Wearables token refresh unavailable; returning empty samples', {
+          error: error instanceof Error ? error.message : 'Unknown',
         });
+        res.json([]);
+        return;
       }
 
-      const samples = await owService.fetchTimeSeries(
-        user.owUserId,
-        sdkToken,
-        query.start,
-        query.end,
-      );
+      let samples: owService.NormalizedHealthSample[];
+      try {
+        samples = await owService.fetchTimeSeries(
+          user.owUserId,
+          sdkToken,
+          query.start,
+          query.end,
+        );
+      } catch (error) {
+        logger.warn('Open Wearables health data unavailable; returning empty samples', {
+          error: error instanceof Error ? error.message : 'Unknown',
+        });
+        samples = [];
+      }
 
       res.json(samples);
     } catch (error) {

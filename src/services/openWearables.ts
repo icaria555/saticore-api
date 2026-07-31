@@ -19,7 +19,8 @@ interface OWUser {
 interface OWTokenResponse {
   access_token: string;
   token_type: string;
-  expires_at: string;
+  expires_in: number;
+  expires_at?: string;
 }
 
 interface OWTimeSeriesSample {
@@ -33,7 +34,7 @@ interface OWTimeSeriesSample {
   };
 }
 
-interface OWConnection {
+export interface OWConnection {
   id: string;
   provider: string;
   status: string;
@@ -126,9 +127,14 @@ export async function getSdkToken(
     }),
   });
 
+  // OW returns expires_in (seconds from now) or expires_at (ISO string)
+  const expiresAt = data.expires_at
+    ? data.expires_at
+    : new Date(Date.now() + data.expires_in * 1000).toISOString();
+
   return {
     token: data.access_token,
-    expiresAt: data.expires_at,
+    expiresAt,
   };
 }
 
@@ -211,12 +217,54 @@ export async function fetchUserConnections(
   const owConfig = getConfig();
   const url = `${owConfig.baseUrl}/api/v1/users/${owUserId}/connections`;
 
-  const data = await requestWithRetry<{ data: OWConnection[] }>(url, {
+  const data = await requestWithRetry<OWConnection[] | { data: OWConnection[] }>(url, {
     method: 'GET',
     headers: getHeaders(sdkToken),
   });
 
-  return data.data;
+  return Array.isArray(data) ? data : data.data ?? [];
+}
+
+// Phase 2: OAuth cloud providers (Garmin, WHOOP, Oura, Polar, Suunto, Strava)
+// Each requires registering a developer app with the provider and adding
+// CLIENT_ID + CLIENT_SECRET to open-wearables/backend/config/.env, then
+// restarting the OW docker stack. See CLAUDE.md "Phase 2" section for details.
+//
+// Not included here (handled natively in the mobile app, not via OAuth):
+// - Apple Health: react-native-health on iOS only
+// - Google Fit: @react-native-google-signin + Fitness API on Android only
+// - Samsung Health: Samsung Partner SDK required, not publicly available
+export const SUPPORTED_PROVIDERS = [
+  { id: 'garmin', name: 'Garmin', icon: '\u2328' },
+  { id: 'polar', name: 'Polar', icon: '\u2764' },
+  { id: 'suunto', name: 'Suunto', icon: '\u26F0' },
+  { id: 'whoop', name: 'WHOOP', icon: '\u26A1' },
+  { id: 'oura', name: 'Oura', icon: '\u25CB' },
+  { id: 'strava', name: 'Strava', icon: '\u26B1' },
+];
+
+export interface OAuthStartResult {
+  authorization_url: string;
+  state: string;
+}
+
+export async function getOAuthUrl(
+  owUserId: string,
+  provider: string,
+  redirectUri?: string,
+): Promise<OAuthStartResult> {
+  const owConfig = getConfig();
+  const params = new URLSearchParams({ user_id: owUserId });
+  if (redirectUri) {
+    params.set('redirect_uri', redirectUri);
+  }
+
+  const url = `${owConfig.baseUrl}/oauth/${provider}/authorize?${params.toString()}`;
+
+  return requestWithRetry<OAuthStartResult>(url, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
 }
 
 export function isConfigured(): boolean {
